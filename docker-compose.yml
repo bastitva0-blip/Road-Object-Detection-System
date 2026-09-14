@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  detection-system:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: road-detection
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    environment:
+      - CAMERA_INDEX=0
+      - MODEL_NAME=yolov8n
+      - ENABLE_TRACKING=true
+      - SAVE_LOGS=true
+    # For USB camera access
+    devices:
+      - /dev/video0:/dev/video0
+
+  # Optional: Redis for caching and pub/sub
+  redis:
+    image: redis:7-alpine
+    container_name: road-detection-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+
+volumes:
+  redis-data:

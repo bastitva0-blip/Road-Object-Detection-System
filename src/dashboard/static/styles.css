@@ -1,0 +1,218 @@
+/* Road Object Detection Dashboard Styles */
+
+:root {
+    --primary-color: #2196F3;
+    --danger-color: #F44336;
+    --success-color: #4CAF50;
+    --warning-color: #FF9800;
+    --dark-bg: #1a1a1a;
+    --light-text: #ffffff;
+    --card-bg: #2a2a2a;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--dark-bg);
+    color: var(--light-text);
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    line-height: 1.6;
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.header {
+    text-align: center;
+    margin-bottom: 30px;
+    border-bottom: 2px solid var(--primary-color);
+    padding-bottom: 20px;
+}
+
+.header h1 {
+    font-size: 2.5em;
+    margin-bottom: 10px;
+}
+
+.subtitle {
+    color: #aaa;
+    font-size: 1.1em;
+}
+
+.dashboard {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 20px;
+    margin-bottom: 30px;
+}
+
+.video-section {
+    display: flex;
+    flex-direction: column;
+}
+
+.video-feed {
+    position: relative;
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    overflow: hidden;
+    aspect-ratio: 16 / 9;
+}
+
+.video-feed img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.overlay-info {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: rgba(0, 0, 0, 0.7);
+    padding: 10px 15px;
+    border-radius: 5px;
+    font-size: 0.9em;
+    display: flex;
+    gap: 20px;
+}
+
+.stats-panel {
+    background-color: var(--card-bg);
+    padding: 20px;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.stats-panel h2 {
+    font-size: 1.3em;
+}
+
+.stat-grid {
+    display: grid;
+    gap: 15px;
+}
+
+.stat-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 15px;
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.stat-label {
+    font-size: 0.85em;
+    opacity: 0.9;
+    margin-bottom: 5px;
+}
+
+.stat-value {
+    font-size: 1.8em;
+    font-weight: bold;
+}
+
+.controls-section {
+    background-color: var(--card-bg);
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 30px;
+}
+
+.controls-section h2 {
+    margin-bottom: 15px;
+}
+
+.control-group {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.control-group label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.control-group input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.confidence-slider {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.confidence-slider label {
+    font-weight: 500;
+}
+
+.confidence-slider input[type="range"] {
+    width: 100%;
+    cursor: pointer;
+}
+
+.alerts-section {
+    background-color: var(--card-bg);
+    padding: 20px;
+    border-radius: 8px;
+}
+
+.alerts-section h2 {
+    margin-bottom: 15px;
+}
+
+.alerts-feed {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.alert-item {
+    background: rgba(255, 152, 0, 0.1);
+    border-left: 4px solid var(--warning-color);
+    padding: 12px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.alert-empty {
+    text-align: center;
+    color: #666;
+    padding: 20px;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+    .dashboard {
+        grid-template-columns: 1fr;
+    }
+    
+    .header h1 {
+        font-size: 1.8em;
+    }
+}
+
+@media (max-width: 768px) {
+    .stat-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+    
+    .control-group {
+        flex-direction: column;
+    }
+}

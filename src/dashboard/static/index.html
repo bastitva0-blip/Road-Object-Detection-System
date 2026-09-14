@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Road Object Detection - Live Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>🚗 Road Object Detection System</h1>
+            <p class="subtitle">Real-time Road Awareness Dashboard</p>
+        </header>
+
+        <div class="dashboard">
+            <div class="video-section">
+                <div class="video-feed">
+                    <img id="video-stream" src="#" alt="Live Video Feed">
+                    <div class="overlay-info">
+                        <span id="fps">FPS: --</span>
+                        <span id="uptime">Uptime: --</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-panel">
+                <h2>Live Statistics</h2>
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <span class="stat-label">Vehicles Detected</span>
+                        <span class="stat-value" id="vehicle-count">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Pedestrians Detected</span>
+                        <span class="stat-value" id="pedestrian-count">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Animals Detected</span>
+                        <span class="stat-value" id="animal-count">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Alerts Fired</span>
+                        <span class="stat-value" id="alert-count">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="controls-section">
+            <h2>Controls</h2>
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="recording-toggle"> Start Recording
+                </label>
+                <label>
+                    <input type="checkbox" id="heatmap-toggle"> Show Heatmap
+                </label>
+            </div>
+
+            <div class="confidence-slider">
+                <label for="confidence">Confidence Threshold: <span id="confidence-value">0.50</span></label>
+                <input type="range" id="confidence" min="0" max="100" value="50" step="1">
+            </div>
+        </div>
+
+        <div class="alerts-section">
+            <h2>Recent Events</h2>
+            <div class="alerts-feed" id="alerts-feed">
+                <div class="alert-empty">No events yet</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

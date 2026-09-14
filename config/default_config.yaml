@@ -1,0 +1,62 @@
+# Default configuration for Road Object Detection System
+
+# Video capture settings
+camera_index: 0
+capture_width: 1280
+capture_height: 720
+fps: 30
+
+# Detection settings
+model_name: yolov8n  # nano, small, medium, large, extra
+confidence_threshold: 0.5
+iou_threshold: 0.45
+
+# Processing features
+enable_tracking: true
+enable_lane_detection: true
+enable_analytics: true
+
+# Output settings
+save_logs: true
+save_recordings: false
+log_dir: data/logs
+recording_dir: data/recordings
+
+# Detection classes to enable
+detection_classes:
+  people: true
+  vehicles: true
+  animals: true
+  infrastructure: true
+  road_markings: false  # Phase 2
+
+# Alert settings
+alert_cooldown_seconds: 5
+enable_audio_alerts: true
+enable_push_notifications: false
+
+# Analytics settings
+speed_estimation:
+  enabled: true
+  pixels_per_meter: 10.0
+
+# Zone definitions
+zones:
+  road_zone:
+    enabled: true
+    type: polygon
+    points: []  # Define in runtime
+  
+  zebra_crossing:
+    enabled: false
+    type: polygon
+    points: []
+
+# Environmental adaptation
+night_mode:
+  enabled: false
+  brightness_threshold: 50
+
+fog_detection:
+  enabled: false
+  clarity_threshold: 100

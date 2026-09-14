@@ -1,0 +1,45 @@
+# Detection classes definition
+
+classes:
+  people:
+    - person
+    - cyclist
+    - motorcyclist
+    - child
+  
+  vehicles:
+    - car
+    - truck
+    - bus
+    - motorcycle
+    - auto
+    - bicycle
+    - tempo
+    - tractor
+    - ambulance
+    - police
+    - fire_truck
+  
+  animals:
+    - cow
+    - buffalo
+    - dog
+  
+  infrastructure:
+    - traffic_light
+    - stop_sign
+    - speed_limit_sign
+    - no_entry
+    - one_way
+  
+  road_markings:
+    - lane_line
+    - zebra_crossing
+    - stop_line
+    - direction_arrow
+  
+  road_anomalies:
+    - pothole
+    - debris
+    - waterlogging
+    - speed_bump
