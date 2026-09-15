@@ -9,6 +9,11 @@ external account, not available here). Until then, this module uses classical CV
 heuristics (dark/anomalous blob detection) as a working stand-in — real accuracy
 depends heavily on lighting/road-surface variation and needs validation against
 labeled data before being trusted for anything beyond an early-warning demo.
+Confirmed on a real photo (textured brick pavement, no actual potholes/debris):
+7 false "potholes" and 21 false "debris" — color/darkness variation in a busy
+real surface reads as anomalies far more than the synthetic uniform-gray-road
+test frames in tests/test_pothole_detector.py suggested. Needs either tighter
+thresholds tuned on real road footage or the CNN this module is standing in for.
 
 Speed bump detection lives in `LaneDetector.detect_road_markings` (Phase 2) —
 not duplicated here.

@@ -32,6 +32,7 @@ data/recordings/
 data/screenshots/
 data/models/
 data/datasets/
+data/test_videos/
 
 # Jupyter
 .ipynb_checkpoints/

@@ -62,8 +62,9 @@ class YOLODetector:
         Returns:
             List of detections with boxes, classes, and confidences
         """
+        kwargs = {"half": True} if self.half else {}
         results = self.model(frame, conf=conf, iou=iou, device=self.device,
-                              imgsz=self.imgsz, half=self.half, verbose=False)
+                              imgsz=self.imgsz, verbose=False, **kwargs)
 
         detections = []
         for result in results:

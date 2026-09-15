@@ -17,6 +17,11 @@ mediapipe==0.10.2
 pytesseract==0.3.10
 pillow==10.0.0
 
+# Audio alerts (optional -- AudioAlertPlayer degrades to logging if missing/no audio device)
+pygame==2.2.0
+# Telegram notifications use plain `requests` calls (see requirements below),
+# not python-telegram-bot -- avoids pulling in an async framework for 2 POST calls
+
 # Web dashboard
 fastapi==0.104.1
 uvicorn==0.24.0

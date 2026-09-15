@@ -4,6 +4,7 @@ Event logging to CSV and JSON
 
 import csv
 import json
+import shutil
 from datetime import datetime
 from typing import Dict, Any
 from pathlib import Path
@@ -11,21 +12,24 @@ from pathlib import Path
 
 class EventLogger:
     """Log detection events to CSV and JSON"""
-    
-    def __init__(self, log_dir: str = "data/logs"):
+
+    def __init__(self, log_dir: str = "data/logs", backup: bool = True):
         """
         Initialize event logger
-        
+
         Args:
             log_dir: Directory to store logs
+            backup: Copy the CSV/JSON logs into log_dir/backups on save_json_log()
         """
         self.log_dir = Path(log_dir)
         self.log_dir.mkdir(parents=True, exist_ok=True)
-        
-        # CSV log file
+        self.backup = backup
+        self.backup_dir = self.log_dir / "backups"
+
+        # New file per run (timestamped) — a run never overwrites a previous one's log
         self.csv_file = self.log_dir / f"events_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
         self.json_file = self.log_dir / f"events_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        
+
         self.events = []
     
     def log_event(self, event_type: str, details: Dict[str, Any]):
@@ -60,9 +64,18 @@ class EventLogger:
                 writer.writerow(event)
     
     def save_json_log(self):
-        """Save events to JSON file"""
+        """Save events to JSON file, then back up both logs if backup is enabled"""
         with open(self.json_file, 'w') as f:
             json.dump(self.events, f, indent=2)
+        if self.backup:
+            self._backup_logs()
+
+    def _backup_logs(self):
+        """Copy the current CSV/JSON log files into log_dir/backups"""
+        self.backup_dir.mkdir(parents=True, exist_ok=True)
+        for src in (self.csv_file, self.json_file):
+            if src.exists():
+                shutil.copy2(src, self.backup_dir / src.name)
     
     def get_events(self, event_type: str = None, limit: int = 100):
         """

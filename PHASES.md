@@ -479,7 +479,7 @@ python scripts/benchmark_anomaly_detection.py
 
 ### Success Criteria
 - ⚠️ Pothole detection mAP > 75% — mAP needs a labeled dataset; classical detector is 1/1 on synthetic dark blobs, 0 false positives on 2 clean-frame tests
-- ✅ False positive rate < 5% — 0 false positives across `tests/test_pothole_detector.py`'s clean-road cases
+- ❌ False positive rate < 5% — 0 FPs on synthetic uniform-gray road frames, but tested against a real photo (textured brick pavement, ultralytics' bundled `bus.jpg`) and got 7 false potholes + 21 false debris; classical CV isn't ready for real, visually busy road surfaces — see pothole_detector.py docstring
 - ✅ Real-time inference (> 10 FPS) — ~26ms/frame combined (`scripts/benchmark_anomaly_detection.py`), throttled further via `ANALYTICS_INTERVAL` in `main.py`
 - ✅ Severity classification accuracy > 80% — logic verified correct on synthetic cases; no labeled severity dataset to compute accuracy against
 
@@ -487,117 +487,103 @@ python scripts/benchmark_anomaly_detection.py
 
 ## Phase 6: Analytics - Heatmap, Flow Map, Queue Length
 **Timeline**: Week 11-12  
-**Status**: 🚧 SCAFFOLDING READY
+**Status**: ✅ CORE COMPLETE (all logic implemented and tested; no historical DB storage)
 
 ### Goals
-- [ ] Traffic density heatmap
-- [ ] Vehicle flow direction map
-- [ ] Queue length estimation
-- [ ] Peak hour detection
-- [ ] Near-miss event detection
-- [ ] Accident detection
+- [x] Traffic density heatmap
+- [x] Vehicle flow direction map
+- [x] Queue length estimation
+- [x] Peak hour detection
+- [x] Near-miss event detection
+- [x] Accident detection
 
 ### Technical Tasks
 
 #### 6.1 Traffic Density Heatmap
 - **Files**: `src/analytics/event_detector.py`
 - **Tasks**:
-  - [ ] Create grid overlay on frame
-  - [ ] Count objects in each grid cell
-  - [ ] Color-code by density (green=low, red=high)
-  - [ ] Smooth heatmap with Gaussian blur
-  - [ ] Animate over time
+  - [x] Create grid overlay on frame (`generate_heatmap`, configurable grid_size)
+  - [x] Count objects in each grid cell
+  - [x] Color-code by density (green=low, red=high) — `cv2.COLORMAP_JET` in `render_heatmap_overlay`
+  - [x] Smooth heatmap with Gaussian blur
+  - [x] Animate over time — recomputed every frame in `main.py`/engine, toggled with 'h'
 
 #### 6.2 Vehicle Flow Direction Map
 - **Tasks**:
-  - [ ] Track vehicle centers across time
-  - [ ] Calculate movement vectors
-  - [ ] Aggregate vectors by region
-  - [ ] Draw flow arrows on overlay
-  - [ ] Identify traffic direction anomalies
+  - [x] Track vehicle centers across time (via tracker trajectory)
+  - [x] Calculate movement vectors (`Track.velocity` from the Kalman filter, exposed via `as_dict`)
+  - [x] Aggregate vectors by region (`compute_flow_vectors`, grid-cell averaging)
+  - [x] Draw flow arrows on overlay (`cv2.arrowedLine` in engine.py `_run_heatmap`, toggled with 'h')
+  - [ ] Identify traffic direction anomalies (no anomaly logic on top of the vectors yet)
 
 #### 6.3 Queue Length Estimation
 - **Tasks**:
-  - [ ] Detect vehicle clusters (consecutive vehicles)
-  - [ ] Measure pixel distance along lane
-  - [ ] Convert to meters using calibration
-  - [ ] Estimate queue length in meters
-  - [ ] Track queue growth/shrinkage over time
+  - [ ] Detect vehicle clusters (consecutive vehicles) — current implementation uses the full spread of all vehicle centers, not per-lane clustering
+  - [x] Measure pixel distance along lane
+  - [x] Convert to meters using calibration
+  - [x] Estimate queue length in meters (`estimate_queue_length`)
+  - [ ] Track queue growth/shrinkage over time (single-frame estimate only, no history)
 
 #### 6.4 Near-Miss & Accident Detection
 - **Files**: `src/analytics/event_detector.py`
 - **Near-Miss Detection**:
-  - [ ] Calculate distance between all object pairs
-  - [ ] Threshold for "near-miss" (e.g., < 2 meters)
-  - [ ] Log event with involved vehicle IDs
-  - [ ] Alert system
+  - [x] Calculate distance between all object pairs
+  - [x] Threshold for "near-miss" (e.g., < 2 meters)
+  - [x] Log event with involved vehicle IDs (wired through `AlertManager` → `EventLogger` in engine.py)
+  - [x] Alert system (AlertManager fires MEDIUM severity)
 
 - **Accident Detection**:
-  - [ ] Detect sudden stops (velocity drop)
-  - [ ] Check for overlapping bounding boxes
-  - [ ] Combine multiple signals for confidence
-  - [ ] Log with timestamp and location
+  - [x] Detect sudden stops (velocity drop) — compares recent vs. earlier trajectory speed
+  - [x] Check for overlapping bounding boxes (IOU threshold)
+  - [x] Combine multiple signals for confidence (0.5 base, +0.5 if a sudden stop coincides)
+  - [x] Log with timestamp and location (via AlertManager/EventLogger)
 
 #### 6.5 Peak Hour Detection
 - **Tasks**:
-  - [ ] Maintain rolling window of vehicle counts (e.g., 30 min)
-  - [ ] Detect sharp increases in traffic
-  - [ ] Compare to historical averages
-  - [ ] Flag peak hours
+  - [x] Maintain rolling window of vehicle counts (e.g., 30 min) (`record_vehicle_count`, deque)
+  - [x] Detect sharp increases in traffic
+  - [x] Compare to historical averages
+  - [x] Flag peak hours (`is_peak_hour`)
 
 ### Dependencies
 
 #### Python Packages
 ```
-pandas==2.0.3               # Data manipulation
-numpy==1.24.3               # Array operations
-scipy==1.11.2               # Gaussian blur, filtering
-matplotlib==3.7.3           # Visualization
-seaborn==0.12.2             # Statistical visualization
+No new dependencies — heatmap/flow/near-miss/accident/queue/peak-hour logic
+uses only opencv-python/numpy (already in requirements.txt). pandas/matplotlib/
+seaborn stay unused until Phase 6's historical-trend storage/visualization is
+actually built (see Storage below).
 ```
 
 #### Storage (for historical data)
-- CSV files (simple option)
-- **PostgreSQL** (recommended for scaling)
-  - Store: vehicle counts, queue lengths, events
-  - Query: historical trends, peak hours
-  
-- **Supabase** (PostgreSQL + auth + real-time)
-  - Managed PostgreSQL database
-  - Authentication built-in
-  - Real-time subscriptions
-  - Free tier: 500MB storage, good for prototyping
+- Not implemented — `EventDetector`'s peak-hour window and heatmap are in-memory only, reset on restart
+- CSV files (simple option) — reachable via `EventLogger`, not wired to peak-hour/heatmap data specifically
+- **PostgreSQL / Supabase** (recommended for scaling) — needs external account/service, out of scope here
 
 ### Testing Strategy
 ```bash
-# Test analytics on recorded video
-python scripts/test_analytics.py --video data/test_video.mp4
-
-# Visualize heatmap
-python scripts/visualize_heatmap.py --output heatmap.png
-
-# Validate queue length estimation
-python scripts/validate_queue_estimation.py --ground_truth data/queue_gt.csv
+# Unit tests on synthetic tracks (near-miss, accident, queue, peak hour, heatmap, flow)
+pytest tests/test_event_detector.py -v
 ```
 
 ### Success Criteria
-- ✅ Heatmap visualization runs in real-time
-- ✅ Queue length MAE < 5 meters
-- ✅ Near-miss detection precision > 90%
-- ✅ Peak hour detection accuracy > 85%
+- ✅ Heatmap visualization runs in real-time — `generate_heatmap`+`render_heatmap_overlay` tested, no historical-trend dashboard (that needs the DB storage noted above)
+- ⚠️ Queue length MAE < 5 meters — untestable without ground-truth video; formula verified correct on synthetic tracks (`tests/test_event_detector.py`)
+- ⚠️ Near-miss detection precision > 90% — untestable without a labeled dataset; distance-threshold logic verified correct on synthetic tracks
+- ⚠️ Peak hour detection accuracy > 85% — untestable without historical real-world data; spike-vs-average logic verified correct on synthetic counts
 
 ---
 
 ## Phase 7: Alert System + Event Logging
 **Timeline**: Week 13-14  
-**Status**: 🚧 SCAFFOLDING READY
+**Status**: ✅ CORE COMPLETE (Telegram implemented but unverified against a real bot)
 
 ### Goals
-- [ ] Alert dispatch system with severity levels
-- [ ] Event logging to CSV/JSON
-- [ ] Audio alerts (beeps with different tones)
-- [ ] Optional Telegram notifications
-- [ ] Alert cooldown to prevent spam
+- [x] Alert dispatch system with severity levels
+- [x] Event logging to CSV/JSON
+- [x] Audio alerts (beeps with different tones)
+- [x] Optional Telegram notifications
+- [x] Alert cooldown to prevent spam
 
 ### Technical Tasks
 
@@ -607,138 +593,135 @@ python scripts/validate_queue_estimation.py --ground_truth data/queue_gt.csv
   - [x] Alert type registry (red light violation, pothole, accident, etc.)
   - [x] Severity levels (LOW, MEDIUM, HIGH, CRITICAL)
   - [x] Cooldown mechanism (prevent duplicate alerts)
-  - [ ] Callback registration system
-  - [ ] Alert queuing
+  - [x] Callback registration system
+  - [x] Alert queuing — `get_recent_alerts()` pollable history (used by the Phase 8 dashboard's `/api/events`), not an async dispatch queue
 
 #### 7.2 Event Logging
 - **Files**: `src/alerts/event_logger.py`
 - **Tasks**:
   - [x] Log to CSV with headers (timestamp, event_type, details)
   - [x] Log to JSON for structured data
-  - [ ] Include metadata (location, involved vehicles, severity)
-  - [ ] Create new log file on app restart
-  - [ ] Automatic backup of logs
+  - [x] Include metadata (location, involved vehicles, severity) — caller-supplied `details` dict, severity added by the engine's alert callback
+  - [x] Create new log file on app restart (timestamped filename per `EventLogger` instance)
+  - [x] Automatic backup of logs (`log_dir/backups/`, copied on `save_json_log()`)
 
 #### 7.3 Audio Alerts
+- **Files**: `src/alerts/audio_alerts.py`
 - **Tasks**:
-  - [ ] Install audio library (Pygame or pydub)
-  - [ ] Define tone frequencies:
-    - 440 Hz: Low priority (yellow lines)
-    - 800 Hz: Medium priority (pedestrian detected)
-    - 1200 Hz: High priority (red light violation)
-    - 1600 Hz: Critical (accident, collision)
-  - [ ] Generate beep sounds dynamically
-  - [ ] Play beep based on alert severity
+  - [x] Install audio library (Pygame or pydub) — pygame added to requirements.txt; failed to build in this sandbox (Python 3.14, no SDL dev headers), so the graceful no-device fallback path is what's actually been tested here
+  - [x] Define tone frequencies (440/800/1200/1600 Hz per severity, exact values from the spec)
+  - [x] Generate beep sounds dynamically (`generate_tone`, verified: correct dtype/length/amplitude bounds)
+  - [x] Play beep based on alert severity (`AudioAlertPlayer.play`, wired into engine.py's alert callbacks)
 
 #### 7.4 Telegram Bot Integration (Optional)
+- **Files**: `src/alerts/telegram_notifier.py`
 - **Tasks**:
-  - [ ] Create Telegram bot via @BotFather
-  - [ ] Store bot token in environment variables
-  - [ ] Send alerts via Telegram API
-  - [ ] Include image with alert (violation screenshot)
-  - [ ] Rate limiting to avoid spam
+  - [ ] Create Telegram bot via @BotFather (needs the user's own bot + token, not creatable here)
+  - [x] Store bot token in environment variables (`TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`, already in `.env.example`)
+  - [x] Send alerts via Telegram API — `requests`-based, not `python-telegram-bot` (see requirements.txt note); verified error handling against the real API with an intentionally invalid token (404 caught, logged, no crash), never sent a real message (no bot token available)
+  - [ ] Include image with alert (violation screenshot) — `send_photo()` implemented but not called from anywhere yet
+  - [x] Rate limiting to avoid spam (3s min interval, verified)
 
 ### Dependencies
 
 #### Python Packages
 ```
-pygame==2.2.0               # Audio playback
-pydub==0.25.1               # Audio generation
-python-telegram-bot==20.1   # Telegram integration
+pygame==2.2.0               # Audio playback (optional — see 7.3)
 ```
+pydub and python-telegram-bot dropped: pydub was only needed alongside pygame for
+audio generation, but `numpy`-based sine synthesis (already a dependency) covers
+it; Telegram uses plain `requests` (already a dependency) instead of python-telegram-bot.
 
 #### External Services
 - **Telegram** (optional, for notifications)
-  - Free tier: unlimited messages
-  - Setup: Create bot via @BotFather
-  - Configuration: Store token in .env
+  - Setup: Create bot via @BotFather, put the token/chat ID in `.env`
+  - Not exercised against a real bot here — needs the user's own credentials
 
-- **Supabase** (for event storage/backup)
-  - Real-time database access
-  - REST API for querying
-  - Free tier includes 500MB
+- **Supabase** (for event storage/backup) — not implemented; local file backup (`log_dir/backups/`) covers the "don't lose it" need without an external service
 
 ### Testing Strategy
 ```bash
-# Test alert system
-python scripts/test_alerts.py
-
-# Test Telegram integration
-python scripts/test_telegram.py --token YOUR_BOT_TOKEN --chat YOUR_CHAT_ID
-
-# Validate event logging
-python scripts/validate_event_log.py --log data/logs/events_*.csv
+# Unit tests: alert manager, event log backup, audio tone generation, Telegram notifier
+pytest tests/test_alerts.py -v
 ```
 
 ### Success Criteria
-- ✅ Alert system fires with < 100ms latency
-- ✅ Event log complete and accurate
-- ✅ Audio beeps audible and distinguishable
-- ✅ No duplicate alerts (cooldown working)
-- ✅ Telegram integration (if enabled) sends messages reliably
+- ✅ Alert system fires with < 100ms latency — synchronous in-process callbacks, effectively instant
+- ✅ Event log complete and accurate — verified via `tests/test_alerts.py`
+- ⚠️ Audio beeps audible and distinguishable — tone generation verified correct (frequency/amplitude/duration); actual audibility unverified, no audio device in this sandbox
+- ✅ No duplicate alerts (cooldown working) — verified in `tests/test_alerts.py`
+- ⚠️ Telegram integration (if enabled) sends messages reliably — error handling verified against the real API; message delivery itself unverified, no bot token available
 
 ---
 
 ## Phase 8: Web Dashboard + Webinar Demo Features
 **Timeline**: Week 15-16  
-**Status**: 🚧 SCAFFOLDING READY
+**Status**: ✅ CORE COMPLETE (backend + basic frontend live; webinar-specific demo features not built)
 
 ### Goals
-- [ ] Real-time video stream in browser
-- [ ] Live statistics panel
-- [ ] Detection class toggles
-- [ ] Confidence threshold slider
-- [ ] Event log viewer
-- [ ] Recording controls
-- [ ] Webinar demo features (pause & annotate, slow-motion, side-by-side)
+- [x] Real-time video stream in browser (MJPEG, verified: real JPEG frames served, viewable in a browser via the forwarded port)
+- [x] Live statistics panel
+- [ ] Detection class toggles (checkboxes exist in the original HTML template but aren't wired to anything — filtering isn't implemented client- or server-side)
+- [x] Confidence threshold slider
+- [x] Event log viewer
+- [x] Recording controls
+- [ ] Webinar demo features (pause & annotate, slow-motion, side-by-side) — see 8.4, not built
 
 ### Technical Tasks
 
 #### 8.1 FastAPI Backend
-- **Files**: `src/dashboard/backend.py`
+- **Files**: `src/dashboard/backend.py`, `src/core/engine.py`
 - **Endpoints**:
   - [x] `GET /` - Dashboard HTML
   - [x] `GET /api/status` - System status (camera, model, GPU)
   - [x] `GET /api/stats` - Live statistics
-  - [ ] `GET /api/events` - Event log paginated
-  - [ ] `GET /video_feed` - MJPEG video stream
-  - [ ] `WS /ws/video` - WebSocket for live video
-  - [ ] `POST /api/config/update` - Update settings
-  - [ ] `POST /api/recording/start` - Start recording
-  - [ ] `POST /api/recording/stop` - Stop recording
+  - [x] `GET /api/events` - Event log (query param `limit`, not full pagination)
+  - [x] `GET /video_feed` - MJPEG video stream
+  - [x] `WS /ws/video` - WebSocket for live video (base64 JPEG frames)
+  - [x] `POST /api/config/update` - Update settings (confidence_threshold only)
+  - [x] `POST /api/recording/start` - Start recording
+  - [x] `POST /api/recording/stop` - Stop recording
+  - [x] `POST /api/heatmap/toggle` - not in the original spec, added since the frontend heatmap checkbox needs a backend hook
+
+- **Architecture note**: the entire per-frame pipeline (capture → detect → track →
+  lane/road analysis → violations → alerts) was extracted from `main.py` into a
+  new `DetectionEngine` class (`src/core/engine.py`), shared by both `main.py`
+  (desktop `cv2.imshow`) and this backend (runs the engine on a background
+  thread, streams its output). Necessary to avoid duplicating ~250 lines of
+  pipeline logic between the two front ends.
 
 - **Tasks**:
-  - [ ] Implement all endpoints
-  - [ ] Add CORS for cross-origin requests
-  - [ ] Request validation with Pydantic
-  - [ ] Error handling with proper HTTP status codes
+  - [x] Implement all endpoints
+  - [ ] Add CORS for cross-origin requests (not needed yet — frontend is same-origin; add if a separate frontend deployment is ever built)
+  - [x] Request validation with Pydantic (`ConfigUpdate` model)
+  - [x] Error handling with proper HTTP status codes (503 if the engine hasn't started yet)
 
 #### 8.2 Frontend Dashboard
 - **Files**: `src/dashboard/static/index.html`, `styles.css`, `app.js`
 - **Components**:
   - [x] HTML structure (header, video, stats, controls, alerts)
   - [x] CSS styling (dark theme, responsive grid)
-  - [x] JavaScript for interactivity (template)
-  - [ ] Real-time stats updates (fetch every 2s)
-  - [ ] WebSocket connection for video
-  - [ ] Control panel:
-    - [ ] Recording toggle (start/stop)
-    - [ ] Heatmap toggle
-    - [ ] Confidence slider (0-1 range)
-    - [ ] Detection class filters (checkboxes)
-  - [ ] Event log table with pagination
+  - [x] JavaScript for interactivity
+  - [x] Real-time stats updates (fetch every 2s)
+  - [ ] WebSocket connection for video (endpoint exists — see 8.1 — but the frontend uses a plain `<img src="/video_feed">` instead, simpler and needs no reconnect logic)
+  - [x] Control panel:
+    - [x] Recording toggle (start/stop)
+    - [x] Heatmap toggle
+    - [x] Confidence slider (0-1 range)
+    - [ ] Detection class filters (checkboxes) — not implemented, see Goals note above
+  - [x] Event log table with pagination — list view, not a paginated table
   - [ ] Download log button
 
 #### 8.3 Video Streaming
-- **MJPEG Streaming**:
-  - [ ] Encode frames to JPEG
-  - [ ] Stream with multipart/x-mixed-replace
-  - [ ] Throttle to target FPS (e.g., 15 FPS for web)
+- **MJPEG Streaming** — chosen as the default (simpler `<img>` tag, no reconnect logic needed):
+  - [x] Encode frames to JPEG
+  - [x] Stream with multipart/x-mixed-replace
+  - [x] Throttle to target FPS (e.g., 15 FPS for web) — capped independently of engine FPS
 
-- **WebSocket Streaming** (alternative):
-  - [ ] Convert frames to base64
-  - [ ] Send over WebSocket every N frames
-  - [ ] Lower latency than MJPEG
+- **WebSocket Streaming** (alternative, endpoint implemented, not used by the default frontend):
+  - [x] Convert frames to base64
+  - [x] Send over WebSocket every N frames
+  - [x] Lower latency than MJPEG (not benchmarked against MJPEG; both cap at 15 FPS)
 
 #### 8.4 Webinar Demo Features
 - **Pause & Annotate**:
@@ -801,6 +784,10 @@ uvicorn==0.24.0             # ASGI server
 pydantic==2.4.2             # Data validation
 python-multipart==0.0.6     # Form data parsing
 ```
+Validated in this sandbox against newer versions (fastapi 0.141, uvicorn latest,
+torch/torchvision 2.14/0.29) since Python 3.14 here has no wheels for the pins
+above — the pins themselves are left as originally set for the documented
+Python 3.10+ target, not bumped to this sandbox's unusual forced versions.
 
 #### Frontend Libraries (CDN)
 ```html
@@ -840,18 +827,24 @@ data = supabase.table("events").insert({
 
 ### Testing Strategy
 ```bash
-# Start backend
-uvicorn src.dashboard.backend:app --reload --port 8000
+# Start backend (DEMO_MODE=true runs a synthetic feed if no webcam is present)
+DEMO_MODE=true uvicorn src.dashboard.backend:app --port 8000
 
 # In browser: http://localhost:8000
 
 # Test API endpoints
 curl http://localhost:8000/api/status
 curl http://localhost:8000/api/stats
+curl http://localhost:8000/api/events
 
 # Test WebSocket connection
 wscat -c ws://localhost:8000/ws/video
 ```
+Verified for real: server started, all endpoints hit with curl, MJPEG stream
+confirmed as valid JPEG bytes, video visually confirmed correct in a browser
+via a forwarded port. `--reload` was dropped from the example — it works, but
+its reloader subprocess broke this sandbox's own background-process tracking;
+unrelated to the app, just noting it in case another constrained host hits it.
 
 ### Deployment Checklist
 
@@ -872,13 +865,13 @@ wscat -c ws://localhost:8000/ws/video
 - [ ] Monitoring and alerting set up
 
 ### Success Criteria
-- ✅ Dashboard loads in < 2 seconds
-- ✅ Video streams with < 1 second latency
-- ✅ Stats update every 2 seconds
-- ✅ Controls responsive (< 100ms)
-- ✅ Supports 50+ concurrent users (if deployed)
-- ✅ Event log queryable and downloadable
-- ✅ Webinar demo features work smoothly
+- ✅ Dashboard loads in < 2 seconds — verified (curl + browser via a forwarded Codespaces port)
+- ⚠️ Video streams with < 1 second latency — MJPEG capped at 15 FPS confirmed working; end-to-end latency not measured
+- ✅ Stats update every 2 seconds — frontend polls `/api/stats` every 2s
+- ⚠️ Controls responsive (< 100ms) — endpoints respond fast; engine state updates lag behind by up to one CPU-inference frame (~1-3s in this sandbox), documented in `/api/stats`'s eventual-consistency note
+- ❌ Supports 50+ concurrent users (if deployed) — not load-tested, single dev server
+- ✅ Event log queryable and downloadable — `/api/events`; no download button in the UI, endpoint itself is directly fetchable
+- ❌ Webinar demo features work smoothly — not built, see 8.4
 
 ### Optional Enhancements
 - [ ] Historical data visualization (charts)

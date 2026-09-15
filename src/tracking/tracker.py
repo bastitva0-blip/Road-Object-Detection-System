@@ -140,6 +140,7 @@ class Track:
             "bbox": np.array(bbox),
             "confirmed": confirmed,
             "trajectory": list(self.trajectory),
+            "velocity": self.kf.velocity_px_per_frame(),
             "age": self.age,
             "hits": self.hits,
         }
