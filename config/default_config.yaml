@@ -52,6 +52,11 @@ zones:
     type: polygon
     points: []
 
+  stop_line:
+    enabled: false
+    type: polygon
+    points: []  # intersection area beyond the stop line; define in runtime
+
 # Environmental adaptation
 night_mode:
   enabled: false

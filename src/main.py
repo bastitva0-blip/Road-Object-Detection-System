@@ -20,7 +20,13 @@ from tracking.tracker import MultiObjectTracker
 from alerts.event_logger import EventLogger
 from road_analysis.lane_detector import LaneDetector
 from analytics.speed_estimator import SpeedEstimator
-from analytics.zone_logic import ZoneLogic
+from analytics.zone_logic import ZoneLogic, classify_traffic_light_state
+from road_analysis.traffic_sign_ocr import TrafficSignOCR
+from road_analysis.pothole_detector import PotholeDetector
+
+_TRAFFIC_LIGHT_CLASSES = ("traffic light", "traffic_light")
+_SIGN_CLASSES = ("speed_limit_or_no_entry",)
+ANALYTICS_INTERVAL = 5  # run pothole/sign analytics every Nth frame, cache between
 
 logger = logging.getLogger(__name__)
 
@@ -112,6 +118,35 @@ def _draw_tracks(frame, tracks: list, speeds: dict):
             cv2.line(frame, p1, p2, (0, 200, 255), 2)
 
 
+def _draw_signs(frame, signs: list, speed_limit: int = None):
+    """Draw traffic sign candidate boxes and any OCR-read speed limit"""
+    for sign in signs:
+        x, y, w, h = sign["bbox"]
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 200, 200), 2)
+        cv2.putText(frame, sign["sign_type"], (x, y - 5),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 200, 200), 1)
+    if speed_limit is not None:
+        cv2.putText(frame, f"Speed limit: {speed_limit}", (10, 135),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 200, 200), 2)
+
+
+def _draw_anomalies(frame, anomalies: dict):
+    """Draw pothole/debris/waterlogging overlays"""
+    for pothole in anomalies.get("potholes", []):
+        x, y, w, h = pothole["bbox"]
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 0, 255), 2)
+        cv2.putText(frame, f"Pothole ({pothole['severity']})", (x, y - 5),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+    for debris in anomalies.get("debris", []):
+        x, y, w, h = debris["bbox"]
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 140, 255), 2)
+    for puddle in anomalies.get("waterlogging", []):
+        x, y, w, h = puddle["bbox"]
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 200, 0), 2)
+        cv2.putText(frame, "Waterlogging", (x, y - 5),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 200, 0), 1)
+
+
 def _draw_zones(frame, zone_logic: ZoneLogic, zone_entries: dict):
     """Draw registered zone polygons with current occupant counts"""
     for zone_name, polygon in zone_logic.zones.items():
@@ -185,6 +220,11 @@ def main():
                     zone_logic.register_zone(zone_name, points)
             print(f"✓ Zone logic initialized ({len(zone_logic.zones)} zone(s))")
 
+            sign_ocr = TrafficSignOCR() if config.enable_analytics else None
+            pothole_detector = PotholeDetector() if config.enable_analytics else None
+            print("✓ Traffic sign/pothole analytics initialized" if config.enable_analytics
+                  else "⚠ Sign/pothole analytics disabled")
+
             event_logger = EventLogger(log_dir=config.log_dir)
             print("✓ Event logger initialized")
 
@@ -195,6 +235,9 @@ def main():
             recorder = None
             paused = False
             frame = None
+            cached_signs: list = []
+            cached_speed_limit = None
+            cached_anomalies: dict = {"potholes": [], "debris": [], "waterlogging": []}
 
             while True:
                 if not paused:
@@ -206,6 +249,7 @@ def main():
 
                     frame_count += 1
                     frame = frame_processor.process(frame, low_light=False)
+                    tracks = []
 
                     try:
                         detections = detector.detect(frame, conf=config.confidence_threshold)
@@ -240,6 +284,49 @@ def main():
                             _draw_lanes(frame, lanes, markings)
                         except Exception:
                             logger.exception(f"Lane detection failed on frame {frame_count}")
+
+                    if config.enable_analytics and tracker is not None:
+                        try:
+                            light_state = "unknown"
+                            for det in detections["infrastructure"]:
+                                if det["class_name"] in _TRAFFIC_LIGHT_CLASSES:
+                                    light_state = classify_traffic_light_state(frame, det["bbox"])
+                                    cv2.putText(frame, f"Light: {light_state}", (10, 160),
+                                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
+                                    break
+
+                            if "stop_line" in zone_logic.zones:
+                                if light_state != "red":
+                                    zone_logic.reset_red_light_violations()
+                                for track_id in zone_logic.detect_red_light_violation(tracks, light_state):
+                                    event_logger.log_event("red_light_violation", {"track_id": track_id})
+                                    logger.warning(f"Red light violation: track {track_id}")
+
+                            for track_id in zone_logic.detect_jaywalking(tracks):
+                                event_logger.log_event("jaywalking", {"track_id": track_id})
+                                logger.warning(f"Jaywalking: track {track_id}")
+                        except Exception:
+                            logger.exception(f"Violation detection failed on frame {frame_count}")
+
+                    if sign_ocr is not None and pothole_detector is not None:
+                        try:
+                            if frame_count % ANALYTICS_INTERVAL == 0:
+                                signs = sign_ocr.detect_sign(frame)["signs"]
+                                cached_signs = signs
+                                cached_speed_limit = None
+                                for sign in signs:
+                                    if sign["sign_type"] in _SIGN_CLASSES:
+                                        x, y, w, h = sign["bbox"]
+                                        inset = frame[y + h // 4:y + 3 * h // 4, x + w // 4:x + 3 * w // 4]
+                                        limit = sign_ocr.read_speed_limit(inset)
+                                        if limit is not None:
+                                            cached_speed_limit = limit
+                                            break
+                                cached_anomalies = pothole_detector.detect_anomalies(frame)
+                            _draw_signs(frame, cached_signs, cached_speed_limit)
+                            _draw_anomalies(frame, cached_anomalies)
+                        except Exception:
+                            logger.exception(f"Sign/pothole analytics failed on frame {frame_count}")
 
                     fps = fps_counter.tick()
                     cv2.putText(frame, f"FPS: {fps:.1f}", (10, 25),

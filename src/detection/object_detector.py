@@ -77,7 +77,7 @@ class ObjectDetector:
                 categorized["vehicles"].append(det)
             elif class_name in ["cow", "buffalo", "dog"]:
                 categorized["animals"].append(det)
-            elif class_name in ["traffic_light", "stop_sign", "speed_limit_sign", "no_entry", "one_way"]:
+            elif class_name in ["traffic light", "stop sign", "traffic_light", "stop_sign", "speed_limit_sign", "no_entry", "one_way"]:
                 categorized["infrastructure"].append(det)
         
         return categorized
