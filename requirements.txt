@@ -10,9 +10,6 @@ ultralytics==8.0.196
 torch==2.0.1
 torchvision==0.15.2
 
-# Tracking
-deep-sort-realtime==1.3.2
-
 # Pose estimation
 mediapipe==0.10.2
 

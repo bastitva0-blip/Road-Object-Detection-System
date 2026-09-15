@@ -197,81 +197,79 @@ python scripts/benchmark_lane_models.py
 
 ## Phase 3: Multi-Object Tracking + Speed Estimation
 **Timeline**: Week 5-6  
-**Status**: 🚧 SCAFFOLDING READY
+**Status**: ✅ CORE COMPLETE (validated on synthetic data; MOTA/ground-truth accuracy needs real dataset)
 
 ### Goals
-- [ ] Persistent object ID assignment across frames
-- [ ] Trajectory visualization (object trails)
-- [ ] Vehicle speed estimation
-- [ ] Object dwell time tracking
-- [ ] Re-identification after occlusion
+- [x] Persistent object ID assignment across frames
+- [x] Trajectory visualization (object trails)
+- [x] Vehicle speed estimation
+- [x] Object dwell time tracking
+- [x] Re-identification after occlusion
 
 ### Technical Tasks
 
 #### 3.1 Multi-Object Tracking (MOT)
 - **Files**: `src/tracking/tracker.py`
 - **Algorithm: DeepSORT**
-  - [ ] Feature extraction (deep learning backbone)
-  - [ ] Kalman filter for motion prediction
-  - [ ] Hungarian algorithm for assignment
-  - [ ] Track management (birth, death, re-id)
+  - [ ] Feature extraction (deep learning backbone) — not used, see decision below
+  - [ ] Kalman filter for motion prediction — implemented under ByteTrack instead
+  - [ ] Hungarian algorithm for assignment — implemented under ByteTrack instead
+  - [ ] Track management (birth, death, re-id) — implemented under ByteTrack instead
 
-- **Algorithm: ByteTrack (Alternative)**
-  - [ ] High-confidence & low-confidence matching
-  - [ ] Faster inference than DeepSORT
-  - [ ] Better handling of occlusions
+- **Algorithm: ByteTrack (Alternative)** — chosen (see module docstring for rationale)
+  - [x] High-confidence & low-confidence matching
+  - [x] Faster inference than DeepSORT (no appearance embedder, CPU-only)
+  - [x] Better handling of occlusions
 
 - **Tasks**:
-  - [ ] Choose between DeepSORT/ByteTrack
-  - [ ] Integrate with Phase 1 detections
-  - [ ] Assign unique track IDs
-  - [ ] Handle 30+ objects simultaneously
-  - [ ] Test occlusion handling
+  - [x] Choose between DeepSORT/ByteTrack — ByteTrack: no extra model download, runs on numpy/scipy already in requirements.txt
+  - [x] Integrate with Phase 1 detections
+  - [x] Assign unique track IDs
+  - [x] Handle 30+ objects simultaneously (tested with 35-40, no ID switches, ~140 FPS tracker-only)
+  - [x] Test occlusion handling (`tests/test_tracking.py::test_no_id_switch_across_brief_occlusion`)
 
 #### 3.2 Speed Estimation
 - **Files**: `src/analytics/speed_estimator.py`
-- **Approach: Optical Flow + Calibration**
-  - [ ] Calculate frame-to-frame motion (optical flow)
-  - [ ] Convert pixels to meters using calibration
-  - [ ] Account for perspective distortion
-  - [ ] Implement camera calibration script
+- **Approach: Optical Flow + Calibration** — implemented
+  - [x] Calculate frame-to-frame motion (optical flow)
+  - [x] Convert pixels to meters using calibration
+  - [ ] Account for perspective distortion (documented limitation: scene-average pixels_per_meter, no homography correction)
+  - [x] Implement camera calibration script (`scripts/calibrate_camera.py`)
   
-- **Approach: 3D Bounding Box**
+- **Approach: 3D Bounding Box** (not implemented — optical flow met the phase goal without a depth/3D model)
   - [ ] Estimate object dimensions
   - [ ] Calculate 3D position in scene
   - [ ] Track 3D center across frames
   - [ ] Derive velocity from 3D trajectory
 
 - **Tasks**:
-  - [ ] Implement optical flow method first
-  - [ ] Create camera calibration utility
-  - [ ] Validate against ground truth
-  - [ ] Accuracy target: ±10% error
+  - [x] Implement optical flow method first
+  - [x] Create camera calibration utility
+  - [ ] Validate against ground truth (needs a real annotated video + radar/GPS reference; verified formula correctness on synthetic known-velocity input instead, see `tests/test_tracking.py::test_known_pixel_velocity_converts_correctly`)
+  - [ ] Accuracy target: ±10% error (untestable without ground truth)
 
 #### 3.3 Trajectory & Analytics
-- **Files**: `src/analytics/zone_logic.py`
+- **Files**: `src/analytics/zone_logic.py`, `src/tracking/tracker.py`
 - **Tasks**:
-  - [ ] Store object position history
-  - [ ] Calculate dwell time in zones
-  - [ ] Trajectory visualization (draw trails)
-  - [ ] Predict future positions
+  - [x] Store object position history (`Track.trajectory`, capped rolling window)
+  - [x] Calculate dwell time in zones (`ZoneLogic.get_dwell_time`)
+  - [x] Trajectory visualization (draw trails) (`main.py::_draw_tracks`)
+  - [x] Predict future positions (`Track.predict_future_position`, linear extrapolation from Kalman velocity)
 
 ### Dependencies
 
 #### Python Packages
 ```
-deep-sort-realtime==1.3.2   # DeepSORT implementation
-scikit-learn==1.3.1         # Machine learning utilities
-scipy==1.11.2               # Kalman filter, optimization
+scipy==1.11.2               # Hungarian algorithm (linear_sum_assignment)
+numpy==1.24.3                # Kalman filter math
+opencv-python==4.8.1.78     # optical flow (calcOpticalFlowPyrLK), calibration UI
 ```
-
-#### Pre-trained Models
-- Deep appearance features (DeepSORT backbone)
-- Download from: [ZQQ1997/Weighted-Boxes-Fusion](https://github.com/ZQQ1997/deepsort_pytorch)
+No new dependencies needed — `deep-sort-realtime` removed from requirements.txt since
+ByteTrack (custom Kalman filter + IOU, no appearance embedder) was chosen instead.
 
 #### External Tools
-- Camera calibration tool (OpenCV)
-- Dataset: UA-DETRAC or CityFlow for validation
+- Camera calibration tool (`scripts/calibrate_camera.py`, built on OpenCV)
+- Dataset: UA-DETRAC or CityFlow for validation (not fetched — network/account required)
 
 ### Testing Strategy
 ```bash

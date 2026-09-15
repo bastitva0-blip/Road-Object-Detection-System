@@ -19,6 +19,8 @@ from detection.object_detector import ObjectDetector
 from tracking.tracker import MultiObjectTracker
 from alerts.event_logger import EventLogger
 from road_analysis.lane_detector import LaneDetector
+from analytics.speed_estimator import SpeedEstimator
+from analytics.zone_logic import ZoneLogic
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +91,37 @@ def _draw_lanes(frame, lanes: dict, markings: dict):
         cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 255), 2)
 
 
+def _draw_tracks(frame, tracks: list, speeds: dict):
+    """Draw tracked boxes with ID/speed labels and trajectory trails"""
+    for track in tracks:
+        x1, y1, x2, y2 = map(int, track["bbox"])
+        track_id = track["track_id"]
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+
+        label = f"ID {track_id} {track['class_name']}"
+        speed = speeds.get(track_id)
+        if speed is not None:
+            label += f" {speed:.0f} km/h"
+        cv2.putText(frame, label, (x1, y1 - 10),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+        trajectory = track.get("trajectory", [])
+        for i in range(1, len(trajectory)):
+            p1 = tuple(map(int, trajectory[i - 1]))
+            p2 = tuple(map(int, trajectory[i]))
+            cv2.line(frame, p1, p2, (0, 200, 255), 2)
+
+
+def _draw_zones(frame, zone_logic: ZoneLogic, zone_entries: dict):
+    """Draw registered zone polygons with current occupant counts"""
+    for zone_name, polygon in zone_logic.zones.items():
+        cv2.polylines(frame, [polygon], isClosed=True, color=(200, 200, 0), thickness=2)
+        count = len(zone_entries.get(zone_name, []))
+        x, y = polygon[0]
+        cv2.putText(frame, f"{zone_name}: {count}", (int(x), int(y) - 10),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 0), 1)
+
+
 def main():
     """Main application loop"""
     parser = argparse.ArgumentParser(description="Road Object Detection System")
@@ -137,6 +170,21 @@ def main():
             lane_detector = LaneDetector() if config.enable_lane_detection else None
             print("✓ Lane detector initialized" if lane_detector else "⚠ Lane detection disabled")
 
+            speed_estimator = None
+            if tracker is not None and config.speed_estimation.get("enabled", True):
+                speed_estimator = SpeedEstimator(
+                    fps=config.fps,
+                    pixels_per_meter=config.speed_estimation.get("pixels_per_meter", 10.0),
+                )
+            print("✓ Speed estimator initialized" if speed_estimator else "⚠ Speed estimation disabled")
+
+            zone_logic = ZoneLogic()
+            for zone_name, zone_cfg in config.zones.items():
+                points = zone_cfg.get("points") or []
+                if zone_cfg.get("enabled") and len(points) >= 3:
+                    zone_logic.register_zone(zone_name, points)
+            print(f"✓ Zone logic initialized ({len(zone_logic.zones)} zone(s))")
+
             event_logger = EventLogger(log_dir=config.log_dir)
             print("✓ Event logger initialized")
 
@@ -165,14 +213,25 @@ def main():
                         logger.exception(f"Detection failed on frame {frame_count}")
                         detections = {"all": []}
 
-                    for det in detections["all"]:
-                        x1, y1, x2, y2 = map(int, det["bbox"])
-                        confidence = det["confidence"]
-                        class_name = det["class_name"]
-                        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-                        label = f"{class_name} {confidence:.2f}"
-                        cv2.putText(frame, label, (x1, y1 - 10),
-                                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+                    if tracker is not None:
+                        try:
+                            tracks = tracker.update(detections["all"])
+                            speeds = speed_estimator.estimate_speed(frame, tracks) if speed_estimator else {}
+                            _draw_tracks(frame, tracks, speeds)
+                            if zone_logic.zones:
+                                zone_entries = zone_logic.check_zone_entry(tracks)
+                                _draw_zones(frame, zone_logic, zone_entries)
+                        except Exception:
+                            logger.exception(f"Tracking failed on frame {frame_count}")
+                    else:
+                        for det in detections["all"]:
+                            x1, y1, x2, y2 = map(int, det["bbox"])
+                            confidence = det["confidence"]
+                            class_name = det["class_name"]
+                            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                            label = f"{class_name} {confidence:.2f}"
+                            cv2.putText(frame, label, (x1, y1 - 10),
+                                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
                     if lane_detector is not None:
                         try:
