@@ -38,6 +38,7 @@ pyyaml==6.0.1
 # Utilities
 tqdm==4.66.1
 requests==2.31.0
+psutil==5.9.5
 
 # Development
 pytest==7.4.2
