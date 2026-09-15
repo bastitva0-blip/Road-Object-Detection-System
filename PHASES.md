@@ -112,26 +112,26 @@ python src/main.py
 
 ## Phase 2: Lane Detection + Road Markings
 **Timeline**: Week 3-4  
-**Status**: 🚧 SCAFFOLDING READY
+**Status**: ✅ CORE COMPLETE (classical CV; LaneNet backend and dataset training deferred)
 
 ### Goals
-- [ ] Detect lane lines (solid, dashed, double)
-- [ ] Identify road markings (arrows, stop lines, speed bumps)
-- [ ] Zebra crossing detection
-- [ ] Lane occupancy analysis
-- [ ] Pothole/waterlogging detection prep
+- [x] Detect lane lines (solid, dashed, double)
+- [x] Identify road markings (arrows, stop lines, speed bumps)
+- [x] Zebra crossing detection
+- [ ] Lane occupancy analysis (needs Phase 3 tracking + lane geometry)
+- [x] Pothole/waterlogging detection prep (architecture decision documented)
 
 ### Technical Tasks
 
 #### 2.1 Lane Line Detection
 - **Files**: `src/road_analysis/lane_detector.py`
 - **Approach 1: Classical (Hough Transform)**
-  - [ ] Grayscale conversion
-  - [ ] Canny edge detection
-  - [ ] Region of interest (ROI) masking
-  - [ ] Hough Line Transform
-  - [ ] Line clustering and fitting
-  - [ ] Polynomial curve fitting
+  - [x] Grayscale conversion
+  - [x] Canny edge detection
+  - [x] Region of interest (ROI) masking
+  - [x] Hough Line Transform
+  - [x] Line clustering and fitting
+  - [ ] Polynomial curve fitting (linear fit implemented; degree-2 fit for sharp curves deferred)
   
 - **Approach 2: Deep Learning (LaneNet)**
   - [ ] Download pretrained LaneNet model
@@ -140,26 +140,26 @@ python src/main.py
   - [ ] Curve fitting on detected pixels
 
 - **Tasks**:
-  - [ ] Implement both approaches
-  - [ ] Benchmark performance
-  - [ ] Choose based on FPS/accuracy tradeoff
-  - [ ] Add lane departure warning logic
+  - [ ] Implement both approaches (Hough done; LaneNet deferred, not needed to hit FPS target)
+  - [x] Benchmark performance (`scripts/benchmark_lane_detection.py`)
+  - [x] Choose based on FPS/accuracy tradeoff (Hough chosen, see module docstring)
+  - [x] Add lane departure warning logic
 
 #### 2.2 Road Marking Recognition
 - **Files**: `src/road_analysis/lane_detector.py`
 - **Tasks**:
-  - [ ] Arrow detection (direction & location)
-  - [ ] Stop line detection
-  - [ ] Speed bump detection (morphological analysis)
-  - [ ] Zebra crossing detection (white stripe pattern)
-  - [ ] Road edge detection (for rural roads)
+  - [x] Arrow detection (direction & location)
+  - [x] Stop line detection
+  - [x] Speed bump detection (morphological analysis)
+  - [x] Zebra crossing detection (white stripe pattern)
+  - [x] Road edge detection (for rural roads)
 
 #### 2.3 Pothole/Anomaly Detection Prep
 - **Files**: `src/road_analysis/pothole_detector.py`
 - **Tasks**:
-  - [ ] Dataset preparation (Roboflow pothole dataset)
-  - [ ] Model architecture research (U-Net, SegFormer)
-  - [ ] Data annotation pipeline
+  - [ ] Dataset preparation (Roboflow pothole dataset) (needs external account/network access)
+  - [x] Model architecture research (U-Net, SegFormer) — U-Net selected, see Phase 5 notes
+  - [ ] Data annotation pipeline (Phase 5 scope)
 
 ### Dependencies
 

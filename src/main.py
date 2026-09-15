@@ -18,6 +18,7 @@ from core.frame_processor import FrameProcessor
 from detection.object_detector import ObjectDetector
 from tracking.tracker import MultiObjectTracker
 from alerts.event_logger import EventLogger
+from road_analysis.lane_detector import LaneDetector
 
 logger = logging.getLogger(__name__)
 
@@ -53,6 +54,39 @@ class FPSCounter:
             elapsed = self.timestamps[-1] - self.timestamps[0]
             self.fps = (len(self.timestamps) - 1) / elapsed if elapsed > 0 else 0.0
         return self.fps
+
+
+def _draw_lanes(frame, lanes: dict, markings: dict):
+    """Overlay lane lines, lane-departure warning, and road markings onto frame"""
+    for key, color in (("left_line", (255, 0, 0)), ("right_line", (0, 0, 255))):
+        line = lanes.get(key)
+        if line is not None:
+            x1, y1, x2, y2 = line
+            cv2.line(frame, (x1, y1), (x2, y2), color, 4)
+
+    warning = lanes.get("departure_warning")
+    if warning:
+        cv2.putText(frame, f"LANE WARNING: {warning}", (10, 110),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+
+    for x1, y1, x2, y2 in markings.get("stop_lines", []):
+        cv2.line(frame, (x1, y1), (x2, y2), (0, 255, 255), 3)
+
+    for crossing in markings.get("zebra_crossings", []):
+        x, y, w, h = crossing["bbox"]
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 255, 0), 2)
+        cv2.putText(frame, "Zebra crossing", (x, y - 5),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+
+    for bump in markings.get("speed_bumps", []):
+        x, y, w, h = bump["bbox"]
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 165, 255), 2)
+        cv2.putText(frame, "Speed bump", (x, y - 5),
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 1)
+
+    for arrow in markings.get("arrows", []):
+        x, y, w, h = arrow["bbox"]
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 255), 2)
 
 
 def main():
@@ -100,6 +134,9 @@ def main():
             tracker = MultiObjectTracker() if config.enable_tracking else None
             print("✓ Tracker initialized" if tracker else "⚠ Tracking disabled")
 
+            lane_detector = LaneDetector() if config.enable_lane_detection else None
+            print("✓ Lane detector initialized" if lane_detector else "⚠ Lane detection disabled")
+
             event_logger = EventLogger(log_dir=config.log_dir)
             print("✓ Event logger initialized")
 
@@ -136,6 +173,14 @@ def main():
                         label = f"{class_name} {confidence:.2f}"
                         cv2.putText(frame, label, (x1, y1 - 10),
                                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+
+                    if lane_detector is not None:
+                        try:
+                            lanes = lane_detector.detect(frame)
+                            markings = lane_detector.detect_road_markings(frame)
+                            _draw_lanes(frame, lanes, markings)
+                        except Exception:
+                            logger.exception(f"Lane detection failed on frame {frame_count}")
 
                     fps = fps_counter.tick()
                     cv2.putText(frame, f"FPS: {fps:.1f}", (10, 25),
